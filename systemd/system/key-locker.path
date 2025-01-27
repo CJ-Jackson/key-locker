@@ -1,0 +1,8 @@
+[Unit]
+Description=Run key-locker recv
+
+[Path]
+PathModified=/tmp/key-locker.path
+
+[Install]
+WantedBy=multi-user.target

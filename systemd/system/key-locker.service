@@ -1,0 +1,7 @@
+[Unit]
+Description=Run key-locker recv
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/bin/key-locker recv
