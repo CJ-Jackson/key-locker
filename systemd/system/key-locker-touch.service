@@ -1,0 +1,11 @@
+[Unit]
+Description=key-locker init touch service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/touch /tmp/key-locker.path
+ExecStart=/usr/bin/chmod 664 /tmp/key-locker.path
+ExecStart=/usr/bin/chown root:wheel /tmp/key-locker.path
+
+[Install]
+WantedBy=multi-user.target
