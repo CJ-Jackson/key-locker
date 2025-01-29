@@ -6,6 +6,9 @@ Type=oneshot
 ExecStart=/usr/bin/touch /tmp/key-locker.path
 ExecStart=/usr/bin/chmod 664 /tmp/key-locker.path
 ExecStart=/usr/bin/chown root:key-locker /tmp/key-locker.path
+ExecStart=/usr/bin/mkdir /tmp/key-locker-queue
+ExecStart=/usr/bin/chmod 775 /tmp/key-locker-queue
+ExecStart=/usr/bin/chown root:key-locker /tmp/key-locker-queue
 
 [Install]
 WantedBy=multi-user.target

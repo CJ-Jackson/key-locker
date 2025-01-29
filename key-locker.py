@@ -33,7 +33,7 @@ def create_send_fifi_add_to_queue() -> str:
     fifo_path = f"/tmp/key-locker-recv-fifo-{time.time()}"
     os.mkfifo(fifo_path)
 
-    pathlib.Path(f"/tmp/key-locker-{time.time()}-queue").write_text(fifo_path, "utf-8")
+    pathlib.Path(f"/tmp/key-locker-queue/key-locker-{time.time()}-queue").write_text(fifo_path, "utf-8")
 
     # Trigger systemd oneshot
     pathlib.Path("/tmp/key-locker.path").touch()
@@ -101,10 +101,10 @@ def root_success(fifo_path: str):
 def root_open(fifo_path: str, passwd: str, name: str, image: str, mount: str):
     try:
         subprocess.run([
-            "cryptsetup", "open", "--type", "luks", image, name
+            "cryptsetup", "open", "--type", "luks", image, f"key-locker-{name}"
         ], check=True, capture_output=True, input=passwd.encode('utf-8'))
         subprocess.run([
-            "mount", "-t", "ext4", f"/dev/mapper/{name}", mount
+            "mount", "-t", "ext4", f"/dev/mapper/key-locker-{name}", mount
         ], check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
         with open(fifo_path, "w") as fifo:
@@ -123,7 +123,7 @@ def root_close(fifo_path: str, name: str, mount: str):
             "umount", mount
         ], check=True, capture_output=True)
         subprocess.run([
-            "cryptsetup", "close", name
+            "cryptsetup", "close", f"key-locker-{name}"
         ])
     except subprocess.CalledProcessError as e:
         with open(fifo_path, "w") as fifo:
@@ -156,7 +156,7 @@ def recv():
     if getpass.getuser() != "root":
         print("Must be root to run `recv`", file=sys.stderr)
         exit(1)
-    for queue in pathlib.Path("/tmp").glob("key-locker-*-queue"):
+    for queue in pathlib.Path("/tmp/key-locker-queue").glob("key-locker-*-queue"):
         fifo_path = pathlib.Path(str(queue)).read_text('utf-8').strip()
         os.remove(str(queue))
         process_queue(fifo_path)
