@@ -120,7 +120,7 @@ def root_fail(fifo_path: str, code: int, msg: str):
 
 def root_open(fifo_path: str, passwd: str, name: str, image: str, mount: str):
     if not valid_name(name):
-        raise ValidNameError("Not not valid")
+        raise ValidNameError("Name not valid")
     subprocess.run([
         "cryptsetup", "open", "--type", "luks", image, f"key-locker-{name}"
     ], check=True, capture_output=True, input=passwd.encode('utf-8'))
@@ -132,7 +132,7 @@ def root_open(fifo_path: str, passwd: str, name: str, image: str, mount: str):
 
 def root_close(fifo_path: str, name: str, mount: str):
     if not valid_name(name):
-        raise ValidNameError("Not not valid")
+        raise ValidNameError("Name not valid")
     subprocess.run([
         "umount", mount
     ], check=True, capture_output=True)
