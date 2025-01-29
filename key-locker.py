@@ -2,6 +2,7 @@
 import getpass
 import os
 import pathlib
+import string
 import subprocess
 import time
 import json
@@ -11,10 +12,20 @@ import tomllib
 arg_cmd = sys.argv[1]
 commands: dict = {}
 
+def valid_name(name: str) -> bool:
+    return not set(name).difference(string.ascii_letters + string.digits + "_-")
+
+
+class ValidNameError(Exception): pass
+
 
 def get_config() -> dict:
     with open(os.path.expanduser("~/.config/key-locker.toml"), "rb") as f:
-        return tomllib.load(f)
+        data: dict = tomllib.load(f)
+    if not valid_name(data["name"]):
+        print("Name not valid", file=sys.stderr)
+        exit(1)
+    return data
 
 
 def handle_recv_fifo(fifo_path: str):
@@ -98,40 +109,36 @@ def root_success(fifo_path: str):
         fifo.flush()
 
 
+def root_fail(fifo_path: str, code: int, msg: str):
+    with open(fifo_path, "w") as fifo:
+        json.dump({
+            "code": code,
+            "stderr": msg
+        }, fifo)
+        fifo.flush()
+
+
 def root_open(fifo_path: str, passwd: str, name: str, image: str, mount: str):
-    try:
-        subprocess.run([
-            "cryptsetup", "open", "--type", "luks", image, f"key-locker-{name}"
-        ], check=True, capture_output=True, input=passwd.encode('utf-8'))
-        subprocess.run([
-            "mount", "-t", "ext4", f"/dev/mapper/key-locker-{name}", mount
-        ], check=True, capture_output=True)
-    except subprocess.CalledProcessError as e:
-        with open(fifo_path, "w") as fifo:
-            json.dump({
-                "code": e.returncode,
-                "stderr": str(e.stderr)
-            }, fifo)
-            fifo.flush()
-            return
+    if not valid_name(name):
+        raise ValidNameError("Not not valid")
+    subprocess.run([
+        "cryptsetup", "open", "--type", "luks", image, f"key-locker-{name}"
+    ], check=True, capture_output=True, input=passwd.encode('utf-8'))
+    subprocess.run([
+        "mount", "-t", "ext4", f"/dev/mapper/key-locker-{name}", mount
+    ], check=True, capture_output=True)
     root_success(fifo_path)
 
 
 def root_close(fifo_path: str, name: str, mount: str):
-    try:
-        subprocess.run([
-            "umount", mount
-        ], check=True, capture_output=True)
-        subprocess.run([
-            "cryptsetup", "close", f"key-locker-{name}"
-        ])
-    except subprocess.CalledProcessError as e:
-        with open(fifo_path, "w") as fifo:
-            json.dump({
-                "code": e.returncode,
-                "stderr": str(e.stderr)
-            }, fifo)
-            fifo.flush()
+    if not valid_name(name):
+        raise ValidNameError("Not not valid")
+    subprocess.run([
+        "umount", mount
+    ], check=True, capture_output=True)
+    subprocess.run([
+        "cryptsetup", "close", f"key-locker-{name}"
+    ], check=True, capture_output=True)
     root_success(fifo_path)
 
 
@@ -145,11 +152,18 @@ def process_queue(recv_fifo_path: str):
     fifo_path = data["fifo"]
     os.mkfifo(fifo_path, 0o640)
     os.chown(fifo_path, 0, path_gid)
-    match data:
-        case {"cmd": "open"}:
-            root_open(fifo_path, data["passwd"], data["name"], data["image"], data["mount"])
-        case {"cmd": "close"}:
-            root_close(fifo_path, data["name"], data["mount"])
+    try:
+        match data:
+            case {"cmd": "open"}:
+                root_open(fifo_path, data["passwd"], data["name"], data["image"], data["mount"])
+            case {"cmd": "close"}:
+                root_close(fifo_path, data["name"], data["mount"])
+    except subprocess.CalledProcessError as e:
+        root_fail(fifo_path, e.returncode, str(e.stderr))
+    except ValidNameError:
+        root_fail(fifo_path, 1, "Name not valid")
+    except KeyError as e:
+        root_fail(fifo_path, 1, e.__str__())
     os.remove(fifo_path)
     time.sleep(1)
 
