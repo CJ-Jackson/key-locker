@@ -31,7 +31,7 @@ def handle_recv_fifo(fifo_path: str):
 
 def create_send_fifi_add_to_queue() -> str:
     fifo_path = f"/tmp/key-locker-recv-fifo-{time.time()}"
-    os.mkfifo(fifo_path)
+    os.mkfifo(fifo_path, 0o640)
 
     pathlib.Path(f"/tmp/key-locker-queue/key-locker-{time.time()}-queue").write_text(fifo_path, "utf-8")
 
@@ -139,10 +139,12 @@ def process_queue(recv_fifo_path: str):
     if not os.path.exists(recv_fifo_path):
         time.sleep(1)
         return
+    path_gid = os.stat(recv_fifo_path).st_gid
     with open(recv_fifo_path, "r") as fifo:
         data = json.load(fifo)
     fifo_path = data["fifo"]
-    os.mkfifo(fifo_path)
+    os.mkfifo(fifo_path, 0o640)
+    os.chown(fifo_path, 0, path_gid)
     match data:
         case {"cmd": "open"}:
             root_open(fifo_path, data["passwd"], data["name"], data["image"], data["mount"])
